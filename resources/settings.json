@@ -1,0 +1,25 @@
+{
+    "runner": {
+        "trimpsIndexFilepath": "./src/trimps/index.html",
+        "maxParallelPages": 8,
+        "redirectLogsToCLI": false,
+        "saveBackupBeforeSimulation": {
+            "enabled": true,
+            "filepath": "./resources/save.backup.json"
+        },
+        "levelStart": 1,
+        "levelEnd": 36,
+        "trimpsSaveFilepath": "./resources/trimpsSave.txt",
+        "saveFilePath": "./resources/save.json",
+        "headless": true,
+        "devtools": false
+    },
+    "simulator": {
+        "name": "Random Combo Simulator",
+        "simulatorSettings": {
+            "framesPerSimulation": 12000,
+            "numberOfRandomSimulations": 1000,
+            "updateSaveFile": true
+        }
+    }
+}

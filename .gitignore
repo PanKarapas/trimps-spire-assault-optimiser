@@ -1,0 +1,4 @@
+node_modules
+resources/*
+!resources/settings.json
+yarn-error.log
