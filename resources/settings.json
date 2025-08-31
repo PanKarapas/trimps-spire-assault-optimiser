@@ -2,13 +2,16 @@
     "runner": {
         "trimpsIndexFilepath": "./src/trimps/index.html",
         "maxParallelPages": 8,
-        "redirectLogsToCLI": false,
+        "browserLogs": {
+            "includeInProgressBars": true,
+            "fileToWriteTo": "./resources/browserLogs.log"
+        },
         "saveBackupBeforeSimulation": {
             "enabled": true,
             "filepath": "./resources/save.backup.json"
         },
         "levelStart": 1,
-        "levelEnd": 36,
+        "levelEnd": -1,
         "trimpsSaveFilepath": "./resources/trimpsSave.txt",
         "saveFilePath": "./resources/save.json",
         "headless": true,

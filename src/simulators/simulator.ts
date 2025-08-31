@@ -33,6 +33,8 @@ export abstract class Simulator<CustomData, CustomOptions extends SimulatorCommo
 
     protected abstract validateOptions(options: Record<string, any>): options is CustomOptions;
 
+    public abstract getName(): string;
+
     public postProcessData(saveFilePath: PathLike, trimpsStats: TrimpsStats, data: SimulatorResult[]): Promise<void> {
         if (this.options.updateSaveFile && data.length > 0) {
             try {
@@ -49,21 +51,11 @@ export abstract class Simulator<CustomData, CustomOptions extends SimulatorCommo
         let pushResult: string;
         if (best.push.level == trimpsStats.maxEnemyLevel) {
             const timeToClear = humanizer({ round: true })((trimpsStats.enemiesOnMaxLevel / best.push.bestEnemiesPerMin) * 60_000);
-            pushResult = `
-            Level ${best.push.level} can be pushed.
-            With a killing rate of ${best.push.bestEnemiesPerMin} enemies a minute it will take ${timeToClear} to clear.
-            Using: ${best.push.bestPushItems.join(', ')}`;
+            pushResult = `Level ${best.push.level} can be pushed.\nWith a killing rate of ${best.push.bestEnemiesPerMin} enemies a minute it will take ${timeToClear} to clear.\nUsing: ${best.push.bestPushItems.join(', ')}`;
         } else {
-            pushResult = `
-            No build found that can push ${trimpsStats.maxEnemyLevel}.
-            `;
+            pushResult = `No build found that can push ${trimpsStats.maxEnemyLevel}.`;
         }
-        console.log(`
-            === Farm ===
-            Best dust/sec: ${best.farm.bestDustPerSec}
-            At level: ${best.farm.level}
-            Using Items: ${best.farm.bestFarmItems.join(', ')}
-            === Push ===${pushResult}`);
+        console.log(`=== Farm ===\nBest dust/sec: ${best.farm.bestDustPerSec}\nAt level: ${best.farm.level}\nUsing Items: ${best.farm.bestFarmItems.join(', ')}\n=== Push ===\n${pushResult}\n`);
         return Promise.resolve();
     }
 

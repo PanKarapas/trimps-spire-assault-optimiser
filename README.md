@@ -29,7 +29,7 @@ An example [settings.json](./resources/settings.json) file is provided.
         - `enabled`: true/false - If true it will copy the save file to filepath before running. This is a backup measure during development, in case the save file gets corrupted. 
         - `filepath`: string - The back up file path. Note this file will be overwritten every run if enabled.
     - `levelStart`: integer - Which SA level should we start the simulation from. Must be 1 <= levelStart <= Max unlocked level.
-    - `levelEnd`: integer - Which SA level we should simulate up to.
+    - `levelEnd`: integer - Which SA level we should simulate up to. This can be either positive or negative (not 0). If negative, it is used as a delta from the max unlocked level. For example -1 will run the simulation up to the last unlocked level.
     - `trimpsSaveFilepath`: string - path to a file containing the trimps save string, exported from trimps.
     - `saveFilePath`: string - path to a save file containing data useful for this project. This is generated when needed, as long as you keep it as a valid path, it doesn't matter if it doesn't exist.
     - `headless`: true/false - if false it will show the browser window the simulations are running on. This is useful for development, but should be left as true otherwise.
