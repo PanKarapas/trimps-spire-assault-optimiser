@@ -1,0 +1,21 @@
+{
+  "name": "trimps-spire-assault-optimiser",
+  "version": "1.0.0",
+  "private": "true",
+  "author": "Pan Karapas <23283805+PanKarapas@users.noreply.github.com>",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@types/node": "^24.3.0",
+    "humanize-duration": "^3.33.0",
+    "puppeteer": "^24.17.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  },
+  "scripts": {
+    "start": "yarn node --loader ts-node/esm src/index.ts ./resources/settings.json"
+  },
+  "devDependencies": {
+    "@types/humanize-duration": "^3.27.4"
+  }
+}

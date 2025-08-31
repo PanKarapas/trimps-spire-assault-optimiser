@@ -1,0 +1,3 @@
+[submodule "src/trimps"]
+	path = src/trimps
+	url = https://github.com/Trimps/Trimps.github.io.git
