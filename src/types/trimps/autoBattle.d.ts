@@ -39,6 +39,7 @@ export interface AutoBattle {
   resetCombat(resetStats?: boolean): number;
   getDustPs(): number;
   nextLevelCount(): number;
+  getItemOrder(): { name: string; zone: any; }[];
 }
 
 export interface Trimp {
