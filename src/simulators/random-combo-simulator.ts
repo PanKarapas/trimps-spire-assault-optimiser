@@ -91,7 +91,7 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
             };
         } else {
             // Random start
-            availableItems.sort(() => Math.random() - Math.random());
+            shuffle(availableItems);
             const items = availableItems.slice(0, hands);
             bestResult = {
                 bestFarmItems: items,
@@ -115,7 +115,7 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
         console.log(`Starting random simulations...`);
         // Run a bunch of random combos to look for an improvement
         for (let sim = 0; sim < options.customData.numberOfRandomSimulations; sim++) {
-            availableItems.sort(() => Math.random() - Math.random());
+            shuffle(availableItems);
             const randomItems = availableItems.slice(0, hands);
             const simResult = runSimulation(autoBattle, options.customData.framesPerSimulation, randomItems);
             bestResult = getNewBest(bestResult, { ...simResult, items: randomItems });
@@ -146,12 +146,17 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
 
         // return names are like that for easy deconstruction to zone save
         function runSimulation(autoBattle: AutoBattle, framesPerSimulation: number, items: string[]): { bestDustPerSec: number, bestEnemiesPerMin: number } {
-            trimps.load(options.trimpsSaveString, false, false);
             autoBattle.enemyLevel = options.level;
 
             autoBattle.dust = 0;
             autoBattle.sessionEnemiesKilled = 0;
-            autoBattle.items = Object.fromEntries(Object.entries(autoBattle.items).map(([name, item]) => { item.equipped = items.includes(name); return [name, item] }));
+            for (const name in autoBattle.items) {
+                const item =  autoBattle.items[name];
+                if (item) {
+                    item.equipped = items.includes(name);
+                }
+            }
+            //autoBattle.items = Object.fromEntries(Object.entries(autoBattle.items).map(([name, item]) => { item.equipped = items.includes(name); return [name, item] }));
             autoBattle.resetCombat(true);
             // each frame is 300ms
             for (let i = 0; i < framesPerSimulation; i++) {
@@ -181,6 +186,13 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
                 res.bestPushItems = newContender.items;
             }
             return res;
+        }
+        function shuffle<T>(arr: (T | undefined)[]): void  {
+            for (let i = arr.length - 1; i > 0; i--) {
+                
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
         }
     }
 }

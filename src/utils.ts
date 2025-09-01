@@ -3,7 +3,8 @@ import type { TrimpsWindow } from "./types/trimps/trimps.js";
 import path from "path";
 export interface TrimpsStats {
     maxEnemyLevel: number,
-    enemiesOnMaxLevel: number
+    enemiesOnMaxLevel: number,
+    itemNamesOrdered: string[]
 }
 export function getTrimpsStats(save: string): TrimpsStats {
   const trimps: TrimpsWindow = window as any;
@@ -12,7 +13,8 @@ export function getTrimpsStats(save: string): TrimpsStats {
   autoBattle.enemyLevel = autoBattle.maxEnemyLevel;
   return {
     maxEnemyLevel: autoBattle.maxEnemyLevel,
-    enemiesOnMaxLevel: autoBattle.nextLevelCount()
+    enemiesOnMaxLevel: autoBattle.nextLevelCount(),
+    itemNamesOrdered: autoBattle.getItemOrder().map(i => i.name)
   };
 }
 

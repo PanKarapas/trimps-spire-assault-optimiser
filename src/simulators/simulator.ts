@@ -36,6 +36,11 @@ export abstract class Simulator<CustomData, CustomOptions extends SimulatorCommo
     public abstract getName(): string;
 
     public postProcessData(saveFilePath: PathLike, trimpsStats: TrimpsStats, data: SimulatorResult[]): Promise<void> {
+        data = data.map(el => {
+            el.bestFarmItems.sort((a, b) => trimpsStats.itemNamesOrdered.indexOf(a) - trimpsStats.itemNamesOrdered.indexOf(b));
+            el.bestPushItems.sort((a, b) => trimpsStats.itemNamesOrdered.indexOf(a) - trimpsStats.itemNamesOrdered.indexOf(b));
+            return el;
+        });
         if (this.options.updateSaveFile && data.length > 0) {
             try {
                 const currSave = readSave(saveFilePath);
