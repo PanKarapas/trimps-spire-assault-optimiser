@@ -1,8 +1,13 @@
 import type { SimulationOptions } from "../runner.js";
-import { Simulator, type SimulatorCommonOptions, type SimulatorResult } from "./simulator.js";
+import { Simulator, type SimulatorCommonOptions } from "./simulator.js";
 import type { AutoBattle } from "../types/trimps/autoBattle.js";
 import type { TrimpsWindow } from "../types/trimps/trimps.js";
 import { createProgressBar, incrementProgressBar, removeProgressBar } from "../progress-bar-manager.js";
+import type { TrimpsStats } from "../utils.js";
+import { PushFarmSaveSchema, PushFarmZoneSchema, type PushFarmSave, type PushFarmZone } from "../save-formats.js";
+import pkg from 'humanize-duration';
+import { type ZodArray, type ZodObject, type ZodOptional, type ZodNumber, type ZodString, type ZodTypeAny, type TypeOf, type ZodType, type ZodTypeDef, z } from "zod/v3";
+const { humanizer } = pkg;
 
 export interface RandomComboSimulatorCustomData {
     framesPerSimulation: number,
@@ -13,30 +18,54 @@ export interface RandomComboSimulatorOptions extends SimulatorCommonOptions {
     framesPerSimulation: number,
     numberOfRandomSimulations: number,
 }
-export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomData, RandomComboSimulatorOptions> {
 
-    public constructor(unvalidatedOptions: Record<string, any>) {
-        super(unvalidatedOptions);
+export const randomComboSimulatorOptionsValidator = z.object({
+        framesPerSimulation: z.number(),
+        numberOfRandomSimulations: z.number(),
+    });
+
+export interface RandomComboSimulatorResult {
+    bestDustPerSec: number,
+    bestFarmItems: string[],
+    bestEnemiesPerMin: number,
+    bestPushItems: string[],
+    level: number
+}
+
+export class RandomComboSimulator
+    extends Simulator<
+        RandomComboSimulatorCustomData,
+        RandomComboSimulatorOptions,
+        RandomComboSimulatorResult,
+        typeof PushFarmSaveSchema
+    > {
+    public static parseOptions(unvalidatedOptions: unknown): RandomComboSimulatorOptions {
+        return randomComboSimulatorOptionsValidator.parse(unvalidatedOptions);
+    } 
+
+    public getSaveData(oldSave: PushFarmSave, trimpsStats: TrimpsStats, data: RandomComboSimulatorResult[]): PushFarmSave {
+        data = data.map(el => {
+            el.bestFarmItems.sort((a, b) => trimpsStats.itemNamesOrdered.indexOf(a) - trimpsStats.itemNamesOrdered.indexOf(b));
+            el.bestPushItems.sort((a, b) => trimpsStats.itemNamesOrdered.indexOf(a) - trimpsStats.itemNamesOrdered.indexOf(b));
+            return el;
+        });
+        const currSave = { ...oldSave };
+        data.forEach((el) => {
+            currSave[el.level] = RandomComboSimulator.mapBestFarmResultToZoneSave(el)
+        });
+        return currSave;
+    }
+
+    public constructor(options: RandomComboSimulatorOptions) {
+        super(options);
+    }
+
+    public getSchema(): typeof PushFarmSaveSchema {
+        return PushFarmSaveSchema;
     }
 
     public getName(): string {
         return "Random Combo Simulator"
-    }
-
-    protected validateOptions(options: Record<string, any>): options is RandomComboSimulatorOptions {
-        if (typeof options !== "object" || options === null) {
-            console.error("Options must be an object");
-        }
-
-        if (typeof options.framesPerSimulation !== "number" || options.framesPerSimulation <= 0) {
-            console.error("framesPerSimulation must be a positive number");
-        }
-
-        if (typeof options.numberOfRandomSimulations !== "number" || options.numberOfRandomSimulations <= 0) {
-            console.error("numberOfRandomSimulations must be a positive number");
-        }
-
-        return true;
     }
 
     public async getCustomData(): Promise<RandomComboSimulatorCustomData> {
@@ -46,26 +75,26 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
         };
     }
 
-    public simulation(options: SimulationOptions<RandomComboSimulatorCustomData>): SimulatorResult {
+    public simulation(options: SimulationOptions<RandomComboSimulatorCustomData, PushFarmSave>): RandomComboSimulatorResult {
         const trimps: TrimpsWindow = window as any;
         // Initial load to get stats
         trimps.load(options.trimpsSaveString, false, false);
         const autoBattle: AutoBattle = trimps.autoBattle;
-
+        
         const availableItems: string[] = Object.entries(autoBattle.items).filter(([_, item]) => item.owned).map(([name, _]) => name);
         const hands = autoBattle.getMaxItems();
 
-        let bestResult: SimulatorResult;
-        let bestSaved = options.save?.[options.level];
+        let bestResult: RandomComboSimulatorResult;
+        let bestSaved = options.saveData?.[options.level];
         const totalSimulations =
             // Initial random simulation if no existing build exists
             (bestSaved ? 0 : 1)
             // Re-testing existing builds
-            + Object.values(options.save ?? {}).reduce((acc, save) => {
-                if (save.farmItems) {
+            + Object.values(options.saveData ?? {}).reduce((acc, saveData) => {
+                if (saveData.farmItems) {
                     acc += 1;
                 }
-                if (save.pushItems) {
+                if (saveData.pushItems) {
                     acc += 1;
                 }
                 return acc;
@@ -102,7 +131,7 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
         }
 
         console.log("Checking existing builds...");
-        for (let existingBuild of Object.values(options.save ?? {})) {
+        for (let existingBuild of Object.values(options.saveData ?? {})) {
             if (existingBuild?.farmItems) {
                 const simResult = runSimulation(autoBattle, options.customData.framesPerSimulation, existingBuild.farmItems);
                 bestResult = getNewBest(bestResult, { ...simResult, items: existingBuild.farmItems });
@@ -151,7 +180,7 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
             autoBattle.dust = 0;
             autoBattle.sessionEnemiesKilled = 0;
             for (const name in autoBattle.items) {
-                const item =  autoBattle.items[name];
+                const item = autoBattle.items[name];
                 if (item) {
                     item.equipped = items.includes(name);
                 }
@@ -172,8 +201,8 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
             };
         }
 
-        function getNewBest(currentBest: SimulatorResult, newContender: { items: string[], bestDustPerSec: number, bestEnemiesPerMin: number }): SimulatorResult {
-            let res: SimulatorResult = { ...currentBest };
+        function getNewBest(currentBest: RandomComboSimulatorResult, newContender: { items: string[], bestDustPerSec: number, bestEnemiesPerMin: number }): RandomComboSimulatorResult {
+            let res: RandomComboSimulatorResult = { ...currentBest };
             if (newContender.bestDustPerSec > res.bestDustPerSec) {
                 console.log(`New best farm build found with ${newContender.bestDustPerSec} dust/s`);
                 res.bestDustPerSec = newContender.bestDustPerSec;
@@ -187,13 +216,70 @@ export class RandomComboSimulator extends Simulator<RandomComboSimulatorCustomDa
             }
             return res;
         }
-        function shuffle<T>(arr: (T | undefined)[]): void  {
+        function shuffle<T>(arr: (T | undefined)[]): void {
             for (let i = arr.length - 1; i > 0; i--) {
-                
+
                 const j = Math.floor(Math.random() * (i + 1));
                 [arr[i], arr[j]] = [arr[j], arr[i]];
             }
         }
+    }
+    public getPrintText(trimpsStats: TrimpsStats, data: RandomComboSimulatorResult[]): string {
+        const best = RandomComboSimulator.findBest(data);
+        let result: string = 
+            "=== Farm ===\n" +
+            `Best dust/sec: ${best.farm.bestDustPerSec}\n` +
+            `At level: ${best.farm.level}\n` +
+            `Using Items: ${best.farm.bestFarmItems.join(', ')}\n` +
+            "=== Push ===\n";
+        if (best.push.level == trimpsStats.maxEnemyLevel) {
+            const timeToClear = humanizer({ round: true })((trimpsStats.enemiesOnMaxLevel / best.push.bestEnemiesPerMin) * 60_000);
+            result += 
+                `Level ${best.push.level} can be pushed.\n` +
+                `With a killing rate of ${best.push.bestEnemiesPerMin} enemies a minute it will take ${timeToClear} to clear.\n` +
+                `Using: ${best.push.bestPushItems.join(', ')}`;
+        } else {
+            result += `No build found that can push ${trimpsStats.maxEnemyLevel}.`;
+        }
+
+        return result;        
+    }
+
+    private static mapBestFarmResultToZoneSave(data: RandomComboSimulatorResult): PushFarmZone {
+        return {
+            farmDustPerSec: data.bestDustPerSec,
+            farmItems: data.bestFarmItems,
+            pushEnemiesPerMin: data.bestEnemiesPerMin,
+            pushItems: data.bestPushItems
+        };
+    }
+
+    private static findBest(data: RandomComboSimulatorResult[]): { farm: RandomComboSimulatorResult, push: RandomComboSimulatorResult } {
+        let res: { farm: RandomComboSimulatorResult, push: RandomComboSimulatorResult } = {
+            farm: {
+                bestDustPerSec: 0,
+                bestFarmItems: [],
+                bestEnemiesPerMin: 0,
+                bestPushItems: [],
+                level: 0
+            },
+            push: {
+                bestDustPerSec: 0,
+                bestFarmItems: [],
+                bestEnemiesPerMin: 0,
+                bestPushItems: [],
+                level: 0
+            }
+        };
+        for (const row of data) {
+            if (row.bestDustPerSec > res.farm.bestDustPerSec) {
+                res.farm = row;
+            }
+            if (row.bestEnemiesPerMin > 0 && row.level > res.push.level) {
+                res.push = row;
+            }
+        }
+        return res;
     }
 }
 

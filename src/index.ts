@@ -15,7 +15,7 @@ export interface SettingsFile {
   runner: RunnerSettings,
   simulator: {
     name: string,
-    simulatorSettings: Record<string, unknown>; // validated later
+    simulatorSettings: unknown; // validated later
   }
 }
 

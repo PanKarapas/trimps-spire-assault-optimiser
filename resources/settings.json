@@ -13,16 +13,17 @@
         "levelStart": 1,
         "levelEnd": -1,
         "trimpsSaveFilepath": "./resources/trimpsSave.txt",
-        "saveFilePath": "./resources/save.json",
         "headless": true,
-        "devtools": false
+        "devtools": false,
+        "updateSave": true,
+        "saveFilePath": "./resources/save.json",
+        "printResults": true
     },
     "simulator": {
         "name": "Random Combo Simulator",
         "simulatorSettings": {
             "framesPerSimulation": 12000,
-            "numberOfRandomSimulations": 1000,
-            "updateSaveFile": true
+            "numberOfRandomSimulations": 1000
         }
     }
 }
