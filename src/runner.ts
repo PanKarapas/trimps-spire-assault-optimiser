@@ -1,10 +1,11 @@
 import puppeteer from "puppeteer";
 import { getTrimpsStats, resolvePath, type TrimpsStats } from "./utils.js";
-import type { Simulator, SimulatorResult as SimulationResult, SimulatorCommonOptions } from "./simulators/simulator.js";
+import type { Simulator, SimulatorCommonOptions } from "./simulators/simulator.js";
 import { LimitedParallelRunner } from "./limited-parallel-runner.js";
-import { readSave, writeSave, type Save } from "./saveFile.js";
-import { createWriteStream, type PathLike, type WriteStream } from "fs";
+import { createWriteStream, type WriteStream } from "fs";
 import { createMasterProgressBar, createProgressBar, incrementProgressBar, logProgressBar, ProgressBarManager, removeProgressBar } from "./progress-bar-manager.js";
+import { SaveManager } from "./save-manager.js";
+import type { TypeOf, ZodTypeAny } from "zod/v3";
 
 export interface RunnerOptions {
     trimpsIndexFilepath: string,
@@ -16,36 +17,39 @@ export interface RunnerOptions {
     },
     levelStart: number,
     levelEnd: number,
-    saveFilePath: string,
     browserLogs: {
         includeInProgressBars: boolean,
         fileToWriteTo?: string
-    }
+    },
+
+    updateSave: boolean,
+    saveFilePath: string,
+    printResults: boolean
 }
 
-export interface SimulationOptions<T> {
+export interface SimulationOptions<CustomData, SaveType> {
     trimpsSaveString: string,
     trimpsStats: TrimpsStats,
     level: number,
-    save: Save,
+    saveData: SaveType,
     progressBarId: number,
     masterProgressBarId: number,
-    customData: T
+    customData: CustomData
 }
 
 // Runs in the browser
-export type SimulationFunction<CustomData> = (options: SimulationOptions<CustomData>) => SimulationResult;
+export type SimulationFunction<CustomData, SaveType, Result> = (options: SimulationOptions<CustomData, SaveType>) => Result;
 
 export class SimulatorRunner {
 
     private browser?: puppeteer.Browser | undefined;
     private browserLogsWriteStream?: WriteStream | undefined;
     public constructor(private options: RunnerOptions) {
-        if( this.options.browserLogs.fileToWriteTo) {
-            this.browserLogsWriteStream = createWriteStream(resolvePath(this.options.browserLogs.fileToWriteTo), { flags: 'a'})
+        if (this.options.browserLogs.fileToWriteTo) {
+            this.browserLogsWriteStream = createWriteStream(resolvePath(this.options.browserLogs.fileToWriteTo), { flags: 'a' })
             this.browserLogsWriteStream.write(`=== New run started [${new Date(Date.now()).toISOString()}] ===\n`)
         }
-     }
+    }
 
     public async launch(options?: puppeteer.LaunchOptions | undefined) {
         if (!this.browser) {
@@ -60,14 +64,19 @@ export class SimulatorRunner {
         this.browserLogsWriteStream?.close();
     }
 
-    public async run<T, S extends SimulatorCommonOptions>(simulator: Simulator<T, S>) {
+    public async run<
+        CustomData,
+        CustomOptions extends SimulatorCommonOptions,
+        SimulationResult,
+        SaveType extends ZodTypeAny
+    >(simulator: Simulator<CustomData, CustomOptions, SimulationResult, SaveType>) {
         if (!this.browser) {
             throw new Error("Use Runner.launch() first, to create a new browser window.");
         }
-
-        const save = readSave(this.options.saveFilePath);
+        const saveManager = new SaveManager<SaveType>(this.options.saveFilePath, simulator.getSchema())
+        const save = saveManager.read();
         if (this.options.saveBackupBeforeSimulation.enabled) {
-            writeSave(this.options.saveBackupBeforeSimulation.filepath, save);
+            saveManager.writeTo(this.options.saveBackupBeforeSimulation.filepath, save);
         }
 
         const trimpsStats = await this.getStats();
@@ -91,27 +100,34 @@ export class SimulatorRunner {
             name: simulator.getName()
         })
 
-        
+
         for (let currLevel = this.options.levelStart; currLevel <= this.options.levelEnd; currLevel++) {
-            const data: SimulationOptions<T> = {
+            const data: SimulationOptions<CustomData, TypeOf<SaveType>> = {
                 trimpsStats,
                 trimpsSaveString: this.options.trimpsSaveString,
                 level: currLevel,
-                save,
+                saveData: save,
                 progressBarId: currLevel,
                 masterProgressBarId: 0,
                 customData: baseCustomData
             };
             parallelRunner.push(async () => {
-                const retVal = await this.runSingle<T>(simulator.simulation, data)
+                const retVal = await this.runSingle<CustomData, SaveType, SimulationResult>(simulator.simulation, data)
                 return retVal;
             });
         }
         let res = await parallelRunner.processQueue();
-        await simulator.postProcessData(this.options.saveFilePath, trimpsStats, res);
+        simulator.getPrintText(trimpsStats, res);
+        if(this.options.printResults) {
+            console.log(`${simulator.getPrintText(trimpsStats, res)}\n`);
+        }
+
+        if (this.options.updateSave) {
+            saveManager.write(simulator.getSaveData(save, trimpsStats, res));
+        }
     }
 
-    private async runSingle<T>(fnc: SimulationFunction<T>, data: SimulationOptions<T>): Promise<SimulationResult> {
+    private async runSingle<CustomData, SaveType, SimulationResult>(fnc: SimulationFunction<CustomData, SaveType, SimulationResult>, data: SimulationOptions<CustomData, SaveType>): Promise<SimulationResult> {
         if (!this.browser) {
             throw new Error("Use Runner.launch() first, to create a new browser window.");
         }
@@ -123,8 +139,8 @@ export class SimulatorRunner {
 
         if (this.browserLogsWriteStream || this.options.browserLogs.includeInProgressBars) {
             page.on('console', message => {
-                if(this.options.browserLogs.includeInProgressBars) {
-                   logProgressBar(data.progressBarId, message.text())
+                if (this.options.browserLogs.includeInProgressBars) {
+                    logProgressBar(data.progressBarId, message.text())
                 }
                 this.browserLogsWriteStream?.write(`[Level ${data.level}] ${message.text()}\n`);
             })
